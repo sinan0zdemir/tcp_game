@@ -1,7 +1,7 @@
 """
 Timeline Canvas for TCP Game
 Displays packet flow visualization between Player A and Player B
-With scrollbar support
+With scrollbar support and centered layout
 """
 import tkinter as tk
 from tkinter import Canvas
@@ -12,6 +12,8 @@ class TimelineCanvas(tk.Frame):
     """Canvas showing packet flow between two clients like TCP diagrams - with scrolling"""
     
     def __init__(self, parent, **kwargs):
+        # Extract height if provided
+        canvas_height = kwargs.pop('height', 250)
         super().__init__(parent, **kwargs)
         
         # Create canvas with scrollbar
@@ -19,8 +21,7 @@ class TimelineCanvas(tk.Frame):
             self, 
             bg="#1a1a2e", 
             highlightthickness=0,
-            width=450,
-            height=250
+            height=canvas_height
         )
         
         # Scrollbar
@@ -31,19 +32,15 @@ class TimelineCanvas(tk.Frame):
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Layout constants
-        self.left_x = 60  # Player A line
-        self.right_x = 390  # Player B line
+        # Layout constants - will be recalculated on resize
+        self.diagram_width = 330  # Width of the diagram (space between A and B lines)
+        self.margin = 60  # Minimum margin from edges
         self.start_y = 50
         self.packet_spacing = 45
         self.current_y = self.start_y
         
-        # Draw initial state
-        self.draw_headers()
-        self.draw_vertical_lines()
-        
-        # Initial scroll region
-        self.canvas.configure(scrollregion=(0, 0, 450, 300))
+        # Packet history for redraw
+        self.packets: List[Dict] = []
         
         # Scrolling support
         self.packet_count = 0
@@ -51,21 +48,65 @@ class TimelineCanvas(tk.Frame):
         # Bind mousewheel scrolling
         self.canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.canvas.bind("<Enter>", lambda e: self.canvas.focus_set())
+        
+        # Bind resize to recenter
+        self.canvas.bind("<Configure>", self._on_resize)
+        
+        # Initial draw will happen on first resize
+        self._last_width = 0
+    
+    def _get_centered_positions(self):
+        """Calculate centered x positions for A and B lines"""
+        canvas_width = self.canvas.winfo_width()
+        if canvas_width < 100:
+            canvas_width = 450  # Default fallback
+        
+        # Center the diagram
+        center_x = canvas_width // 2
+        half_diagram = self.diagram_width // 2
+        
+        left_x = center_x - half_diagram
+        right_x = center_x + half_diagram
+        
+        return left_x, right_x
+    
+    def _on_resize(self, event):
+        """Handle canvas resize - recenter content"""
+        if event.width != self._last_width and event.width > 50:
+            self._last_width = event.width
+            self._redraw_all()
     
     def _on_mousewheel(self, event):
         """Handle mousewheel scrolling"""
         self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
     
+    def _redraw_all(self):
+        """Redraw everything centered"""
+        self.canvas.delete("all")
+        self.current_y = self.start_y
+        
+        self.draw_headers()
+        self.draw_vertical_lines()
+        
+        # Redraw all packets
+        for packet_info in self.packets:
+            self._draw_packet(packet_info)
+        
+        # Update scroll region
+        self._update_scroll_region()
+    
     def draw_headers(self):
         """Draw Player A and Player B headers"""
+        left_x, right_x = self._get_centered_positions()
+        
         self.canvas.create_text(
-            self.left_x, 20,
+            left_x, 20,
             text="A",
             fill="#00d4ff",
             font=("Consolas", 12, "bold")
         )
         self.canvas.create_text(
-            self.right_x, 20,
+            right_x, 20,
             text="B", 
             fill="#ff6b6b",
             font=("Consolas", 12, "bold")
@@ -73,26 +114,43 @@ class TimelineCanvas(tk.Frame):
     
     def draw_vertical_lines(self):
         """Draw timeline vertical lines for both players"""
+        left_x, right_x = self._get_centered_positions()
+        
         self.line_a = self.canvas.create_line(
-            self.left_x, 35, self.left_x, 5000,
+            left_x, 35, left_x, 5000,
             fill="#00d4ff", width=2, dash=(4, 2)
         )
         self.line_b = self.canvas.create_line(
-            self.right_x, 35, self.right_x, 5000,
+            right_x, 35, right_x, 5000,
             fill="#ff6b6b", width=2, dash=(4, 2)
         )
     
     def add_packet(self, packet_info: Dict):
         """Add a packet arrow to the timeline"""
+        # Store packet for redraw
+        self.packets.append(packet_info)
+        self.packet_count += 1
+        
+        # Draw the packet
+        self._draw_packet(packet_info)
+        
+        # Update scroll region and auto-scroll
+        self._update_scroll_region()
+        self.canvas.yview_moveto(1.0)
+    
+    def _draw_packet(self, packet_info: Dict):
+        """Draw a single packet arrow"""
+        left_x, right_x = self._get_centered_positions()
+        
         sender = packet_info.get("sender", "A")
         is_valid = packet_info.get("valid", True)
         is_error = packet_info.get("type") == "ERROR"
         
         # Determine arrow direction
         if sender == "A":
-            x1, x2 = self.left_x, self.right_x
+            x1, x2 = left_x, right_x
         else:
-            x1, x2 = self.right_x, self.left_x
+            x1, x2 = right_x, left_x
         
         # Arrow color based on validity
         if is_error:
@@ -135,19 +193,16 @@ class TimelineCanvas(tk.Frame):
         
         # Update position for next packet
         self.current_y += self.packet_spacing
-        self.packet_count += 1
-        
-        # Update scroll region
-        self.canvas.configure(scrollregion=(0, 0, 450, self.current_y + 50))
-        
-        # Auto-scroll to bottom
-        self.canvas.yview_moveto(1.0)
+    
+    def _update_scroll_region(self):
+        """Update the scroll region based on content"""
+        canvas_width = max(self.canvas.winfo_width(), 450)
+        self.canvas.configure(scrollregion=(0, 0, canvas_width, self.current_y + 50))
     
     def clear(self):
         """Clear all packets and reset timeline"""
-        self.canvas.delete("all")
-        self.current_y = self.start_y
+        self.packets = []
         self.packet_count = 0
-        self.draw_headers()
-        self.draw_vertical_lines()
-        self.canvas.configure(scrollregion=(0, 0, 450, 300))
+        self.current_y = self.start_y
+        self._redraw_all()
+

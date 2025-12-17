@@ -22,7 +22,8 @@ class HostWindow:
     def __init__(self, root: tk.Tk, port: int = 5555):
         self.root = root
         self.root.title("TCP Game - Player A (Host)")
-        self.root.geometry("550x800")
+        self.root.geometry("520x650")
+        self.root.minsize(450, 500)
         self.root.configure(bg="#0f0f1a")
         
         # Game state (host owns the authoritative state)
@@ -74,146 +75,142 @@ class HostWindow:
     
     def create_widgets(self):
         """Create all GUI widgets"""
-        # Main container
+        # Main container - simple pack layout
         main_frame = ttk.Frame(self.root, style="Dark.TFrame")
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
         
         # Title
         title_label = ttk.Label(main_frame, text="Player A (Host)", style="Title.TLabel")
-        title_label.pack(pady=(0, 5))
+        title_label.pack(pady=(0, 3))
         
         # Network status panel
-        net_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=2)
-        net_frame.pack(fill=tk.X, pady=(0, 5))
+        net_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=1)
+        net_frame.pack(fill=tk.X, pady=(0, 3))
         
         self.network_label = ttk.Label(net_frame, text="Starting server...", style="Network.TLabel")
-        self.network_label.pack(pady=5, padx=10)
+        self.network_label.pack(pady=3, padx=8)
         
         # Info panel
-        info_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=2)
-        info_frame.pack(fill=tk.X, pady=(0, 5))
+        info_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=1)
+        info_frame.pack(fill=tk.X, pady=(0, 3))
         
         # Scores row
         score_row = tk.Frame(info_frame, bg="#1a1a2e")
-        score_row.pack(fill=tk.X, padx=10, pady=5)
+        score_row.pack(fill=tk.X, padx=8, pady=3)
         
         self.score_a_label = ttk.Label(score_row, text="A: 0", style="Score.TLabel")
-        self.score_a_label.pack(side=tk.LEFT, padx=5)
+        self.score_a_label.pack(side=tk.LEFT, padx=3)
         
         self.score_b_label = ttk.Label(score_row, text="B: 0", style="Score.TLabel")
-        self.score_b_label.pack(side=tk.LEFT, padx=5)
+        self.score_b_label.pack(side=tk.LEFT, padx=3)
         
         # Turn timer (45s countdown)
         self.timer_label = ttk.Label(score_row, text="45s", style="Timer.TLabel")
-        self.timer_label.pack(side=tk.RIGHT, padx=5)
+        self.timer_label.pack(side=tk.RIGHT, padx=3)
         
         # Game timer (5:00 countdown)
         self.game_timer_label = ttk.Label(score_row, text="5:00", style="Dark.TLabel")
-        self.game_timer_label.pack(side=tk.RIGHT, padx=10)
+        self.game_timer_label.pack(side=tk.RIGHT, padx=8)
         
         # Turn indicator
         self.turn_label = ttk.Label(info_frame, text="Your Turn!", style="Turn.TLabel")
-        self.turn_label.pack(pady=5)
+        self.turn_label.pack(pady=3)
         
         # RWND display
         rwnd_frame = tk.Frame(info_frame, bg="#1a1a2e")
-        rwnd_frame.pack(fill=tk.X, padx=10, pady=5)
+        rwnd_frame.pack(fill=tk.X, padx=8, pady=3)
         
         self.my_rwnd_label = ttk.Label(rwnd_frame, text="My RWND: 50", style="RWND.TLabel")
-        self.my_rwnd_label.pack(side=tk.LEFT, padx=5)
+        self.my_rwnd_label.pack(side=tk.LEFT, padx=3)
         
         self.opp_rwnd_label = ttk.Label(rwnd_frame, text="Opp RWND: 50", style="RWND.TLabel")
-        self.opp_rwnd_label.pack(side=tk.RIGHT, padx=5)
+        self.opp_rwnd_label.pack(side=tk.RIGHT, padx=3)
         
         # Input panel
-        input_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=2)
-        input_frame.pack(fill=tk.X, pady=5)
+        input_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=1)
+        input_frame.pack(fill=tk.X, pady=3)
         
-        ttk.Label(input_frame, text="Send Packet", style="Title.TLabel").pack(pady=5)
+        ttk.Label(input_frame, text="Send Packet", style="Title.TLabel").pack(pady=3)
         
-        # Input fields
+        # Input fields - use grid for more compact layout
         fields_frame = tk.Frame(input_frame, bg="#1a1a2e")
-        fields_frame.pack(padx=15, pady=5)
+        fields_frame.pack(padx=10, pady=3)
         
-        # SEQ
-        seq_frame = tk.Frame(fields_frame, bg="#1a1a2e")
-        seq_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(seq_frame, text="SEQ:", style="Dark.TLabel", width=8).pack(side=tk.LEFT)
-        self.seq_entry = tk.Entry(seq_frame, font=("Consolas", 12), width=12, bg="#2a2a3e", fg="white", insertbackground="white")
-        self.seq_entry.pack(side=tk.LEFT, padx=5)
+        # Row 1: SEQ and ACK
+        row1 = tk.Frame(fields_frame, bg="#1a1a2e")
+        row1.pack(fill=tk.X, pady=1)
+        
+        ttk.Label(row1, text="SEQ:", style="Dark.TLabel", width=5).pack(side=tk.LEFT)
+        self.seq_entry = tk.Entry(row1, font=("Consolas", 10), width=8, bg="#2a2a3e", fg="white", insertbackground="white")
+        self.seq_entry.pack(side=tk.LEFT, padx=2)
         self.seq_entry.insert(0, "0")
         
-        # ACK
-        ack_frame = tk.Frame(fields_frame, bg="#1a1a2e")
-        ack_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(ack_frame, text="ACK:", style="Dark.TLabel", width=8).pack(side=tk.LEFT)
-        self.ack_entry = tk.Entry(ack_frame, font=("Consolas", 12), width=12, bg="#2a2a3e", fg="white", insertbackground="white")
-        self.ack_entry.pack(side=tk.LEFT, padx=5)
+        ttk.Label(row1, text="ACK:", style="Dark.TLabel", width=5).pack(side=tk.LEFT, padx=(8, 0))
+        self.ack_entry = tk.Entry(row1, font=("Consolas", 10), width=8, bg="#2a2a3e", fg="white", insertbackground="white")
+        self.ack_entry.pack(side=tk.LEFT, padx=2)
         self.ack_entry.insert(0, "0")
         
-        # LEN
-        len_frame = tk.Frame(fields_frame, bg="#1a1a2e")
-        len_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(len_frame, text="LEN:", style="Dark.TLabel", width=8).pack(side=tk.LEFT)
-        self.len_entry = tk.Entry(len_frame, font=("Consolas", 12), width=12, bg="#2a2a3e", fg="white", insertbackground="white")
-        self.len_entry.pack(side=tk.LEFT, padx=5)
+        # Row 2: LEN and RWND
+        row2 = tk.Frame(fields_frame, bg="#1a1a2e")
+        row2.pack(fill=tk.X, pady=1)
+        
+        ttk.Label(row2, text="LEN:", style="Dark.TLabel", width=5).pack(side=tk.LEFT)
+        self.len_entry = tk.Entry(row2, font=("Consolas", 10), width=8, bg="#2a2a3e", fg="white", insertbackground="white")
+        self.len_entry.pack(side=tk.LEFT, padx=2)
         self.len_entry.insert(0, "10")
         
-        # RWND
-        rwnd_input_frame = tk.Frame(fields_frame, bg="#1a1a2e")
-        rwnd_input_frame.pack(fill=tk.X, pady=2)
-        ttk.Label(rwnd_input_frame, text="RWND:", style="Dark.TLabel", width=8).pack(side=tk.LEFT)
-        self.rwnd_entry = tk.Entry(rwnd_input_frame, font=("Consolas", 12), width=12, bg="#2a2a3e", fg="white", insertbackground="white")
-        self.rwnd_entry.pack(side=tk.LEFT, padx=5)
+        ttk.Label(row2, text="RWND:", style="Dark.TLabel", width=6).pack(side=tk.LEFT, padx=(8, 0))
+        self.rwnd_entry = tk.Entry(row2, font=("Consolas", 10), width=8, bg="#2a2a3e", fg="white", insertbackground="white")
+        self.rwnd_entry.pack(side=tk.LEFT, padx=2)
         self.rwnd_entry.insert(0, "50")
         
         # Buttons
         btn_frame = tk.Frame(input_frame, bg="#1a1a2e")
-        btn_frame.pack(pady=5)
+        btn_frame.pack(pady=3)
         
         self.send_btn = tk.Button(
-            btn_frame, text="📤 Send", font=("Segoe UI", 11, "bold"),
+            btn_frame, text="📤 Send", font=("Segoe UI", 10, "bold"),
             bg="#4ade80", fg="#0f0f1a", activebackground="#22c55e",
-            command=self.send_packet, width=10, height=1, state=tk.DISABLED
+            command=self.send_packet, width=8, state=tk.DISABLED
         )
-        self.send_btn.pack(side=tk.LEFT, padx=5)
+        self.send_btn.pack(side=tk.LEFT, padx=3)
         
         self.error_btn = tk.Button(
-            btn_frame, text="⚠️ ERROR", font=("Segoe UI", 11, "bold"),
+            btn_frame, text="⚠️ ERROR", font=("Segoe UI", 10, "bold"),
             bg="#ff6b6b", fg="white", activebackground="#ef4444",
-            command=self.send_error, width=10, height=1, state=tk.DISABLED
+            command=self.send_error, width=8, state=tk.DISABLED
         )
-        self.error_btn.pack(side=tk.LEFT, padx=5)
+        self.error_btn.pack(side=tk.LEFT, padx=3)
         
         # Status
-        self.status_label = ttk.Label(input_frame, text="Waiting for Player B to connect...", style="Status.TLabel", wraplength=400)
-        self.status_label.pack(pady=5)
+        self.status_label = ttk.Label(input_frame, text="Waiting for Player B to connect...", style="Status.TLabel", wraplength=350)
+        self.status_label.pack(pady=3)
         
-        # Timeline
-        timeline_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=2)
-        timeline_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        # Timeline - larger area for packet visualization
+        timeline_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=1)
+        timeline_frame.pack(fill=tk.BOTH, expand=True, pady=3)
         
-        ttk.Label(timeline_frame, text="Packet Timeline", style="Dark.TLabel").pack(pady=3)
+        ttk.Label(timeline_frame, text="Packet Timeline", style="Dark.TLabel").pack(pady=2)
         
-        self.timeline = TimelineCanvas(timeline_frame, bg="#1a1a2e")
-        self.timeline.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.timeline = TimelineCanvas(timeline_frame, bg="#1a1a2e", height=180)
+        self.timeline.pack(fill=tk.BOTH, expand=True, padx=3, pady=3)
         
         # Packet log
-        log_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=2)
-        log_frame.pack(fill=tk.X, pady=5)
+        log_frame = tk.Frame(main_frame, bg="#1a1a2e", relief=tk.RIDGE, bd=1)
+        log_frame.pack(fill=tk.X, pady=3)
         
         self.log_text = tk.Text(
-            log_frame, height=4, bg="#0f0f1a", fg="#e0e0e0",
-            font=("Consolas", 9), state=tk.DISABLED
+            log_frame, height=3, bg="#0f0f1a", fg="#e0e0e0",
+            font=("Consolas", 8), state=tk.DISABLED
         )
-        self.log_text.pack(fill=tk.X, padx=5, pady=5)
+        self.log_text.pack(fill=tk.X, padx=3, pady=3)
         
         # Reset button
         reset_btn = tk.Button(
-            main_frame, text="🔄 Reset Game", font=("Segoe UI", 10),
-            bg="#6366f1", fg="white", command=self.reset_game, width=12
+            main_frame, text="🔄 Reset Game", font=("Segoe UI", 9),
+            bg="#6366f1", fg="white", command=self.reset_game, width=10
         )
-        reset_btn.pack(pady=5)
+        reset_btn.pack(pady=3)
     
     def start_server(self):
         """Start the socket server"""

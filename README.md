@@ -32,11 +32,6 @@ python run_client.py [host_ip] [port]
 # For localhost: python run_client.py
 ```
 
-### Local Mode (Same Computer, Shared State)
-```bash
-python run_game.py
-```
-
 ## Game Rules
 
 1. **Turn-based**: Player A goes first, then turns alternate
@@ -50,7 +45,6 @@ python run_game.py
 
 ```
 tcp_game_new/
-├── run_game.py           # Local mode (shared state)
 ├── run_host.py           # Network host (Player A)
 ├── run_client.py         # Network client (Player B)
 ├── tcp_game/
@@ -58,7 +52,6 @@ tcp_game_new/
 │   │   ├── packet.py     # Packet dataclass
 │   │   └── game_state.py # Game logic & validation
 │   ├── gui/
-│   │   ├── main_window.py     # Local mode windows
 │   │   ├── host_window.py     # Network host window
 │   │   ├── client_window.py   # Network client window
 │   │   └── timeline_canvas.py # Packet diagram
