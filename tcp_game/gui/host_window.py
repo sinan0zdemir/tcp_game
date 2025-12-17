@@ -40,7 +40,10 @@ class HostWindow:
         # Timer state
         self.timer_id = None
         self.rwnd_timer_id = None
-        self.time_left = 45
+        self.game_timer_id = None
+        self.time_left = 45  # Turn timer (45 seconds)
+        self.game_time_left = 300  # Game timer (5 minutes = 300 seconds)
+        self.game_over = False
         
         # Build UI
         self.setup_styles()
@@ -100,9 +103,13 @@ class HostWindow:
         self.score_b_label = ttk.Label(score_row, text="B: 0", style="Score.TLabel")
         self.score_b_label.pack(side=tk.LEFT, padx=5)
         
-        # Timer
+        # Turn timer (45s countdown)
         self.timer_label = ttk.Label(score_row, text="45s", style="Timer.TLabel")
         self.timer_label.pack(side=tk.RIGHT, padx=5)
+        
+        # Game timer (5:00 countdown)
+        self.game_timer_label = ttk.Label(score_row, text="5:00", style="Dark.TLabel")
+        self.game_timer_label.pack(side=tk.RIGHT, padx=10)
         
         # Turn indicator
         self.turn_label = ttk.Label(info_frame, text="Your Turn!", style="Turn.TLabel")
@@ -212,10 +219,19 @@ class HostWindow:
         """Start the socket server"""
         if self.server.start():
             ip = self.server.get_local_ip()
-            self.network_label.configure(text=f"🔊 Listening on {ip}:{self.server.port}")
+            self.network_label.configure(text=f"Listening on {ip}:{self.server.port}")
             self.log_message(f"Server started on {ip}:{self.server.port}")
         else:
-            self.network_label.configure(text="❌ Failed to start server")
+            self.network_label.configure(text="Failed to start server")
+    
+    def send_update(self, message: str, is_valid: bool, reset_timer: bool = True):
+        """Send state update to client including game timer info"""
+        if self.server.connected:
+            self.server.send_state_update(
+                self.game_state, message, is_valid, reset_timer,
+                game_time_left=self.game_time_left,
+                game_over=self.game_over
+            )
     
     def on_client_connected(self, addr):
         """Called when client connects"""
@@ -250,21 +266,29 @@ class HostWindow:
         self.send_btn.configure(state=tk.NORMAL)
         self.error_btn.configure(state=tk.NORMAL)
         
-        # Cancel old RWND timer if exists
+        # Cancel old timers if exists
         if self.rwnd_timer_id:
             self.root.after_cancel(self.rwnd_timer_id)
             self.rwnd_timer_id = None
+        if self.game_timer_id:
+            self.root.after_cancel(self.game_timer_id)
+            self.game_timer_id = None
+        
+        # Reset game state
+        self.game_over = False
+        self.game_time_left = 300  # 5 minutes
         
         # Start timers
         self.start_timer()
         self.start_rwnd_timer()
+        self.start_game_timer()
         
         # Update display
         self.update_display()
         
         # Send initial state
-        self.server.send_state_update(self.game_state, "Game started!", True)
-        self.log_message("🔄 Game state reset for new connection")
+        self.send_update("Game started!", True)
+        self.log_message("Game state reset for new connection")
     
     def on_remote_packet(self, seq: int, ack: int, length: int, rwnd: int, is_error: bool):
         """Called when packet received from Player B"""
@@ -303,7 +327,7 @@ class HostWindow:
         self.start_timer()
         
         # Send state update to client
-        self.server.send_state_update(self.game_state, message, is_valid)
+        self.send_update(message, is_valid)
     
     def on_client_disconnected(self):
         """Called when client disconnects"""
@@ -364,7 +388,7 @@ class HostWindow:
         self.update_suggested_values()
         
         # Send state update to client
-        self.server.send_state_update(self.game_state, message, is_valid)
+        self.send_update(message, is_valid)
     
     def send_error(self):
         """Send ERROR packet"""
@@ -394,7 +418,7 @@ class HostWindow:
         self.start_timer()
         
         # Send state update to client
-        self.server.send_state_update(self.game_state, message, is_valid)
+        self.send_update(message, is_valid)
     
     def update_display(self):
         """Update all display elements"""
@@ -474,7 +498,7 @@ class HostWindow:
         self.log_message(f"⏰ {message}", is_error=True)
         self.update_display()
         if self.server.connected:
-            self.server.send_state_update(self.game_state, message, False)
+            self.send_update(message, False)
         self.start_timer()
     
     def start_rwnd_timer(self):
@@ -487,6 +511,9 @@ class HostWindow:
     
     def increase_rwnd(self):
         """Increase rwnd by 20 every 15 seconds"""
+        if self.game_over:
+            return
+            
         old_a = self.game_state.player_a.rwnd
         old_b = self.game_state.player_b.rwnd
         
@@ -494,13 +521,77 @@ class HostWindow:
         self.game_state.player_b.rwnd = old_b + 20
         
         self.update_display()
-        self.log_message(f"📈 Both RWND +20 (A:{self.game_state.player_a.rwnd}, B:{self.game_state.player_b.rwnd})")
+        self.log_message(f"Both RWND +20 (A:{self.game_state.player_a.rwnd}, B:{self.game_state.player_b.rwnd})")
         
         # Send update to client (don't reset their timer - RWND update is not a packet exchange)
-        if self.server.connected:
-            self.server.send_state_update(self.game_state, "RWND increased +20", True, reset_timer=False)
+        self.send_update("RWND increased +20", True, reset_timer=False)
         
         self.schedule_rwnd_increase()
+    
+    def start_game_timer(self):
+        """Start the 5-minute game timer"""
+        self.update_game_timer()
+    
+    def update_game_timer(self):
+        """Update game timer display every second"""
+        if self.game_over:
+            return
+        
+        # Update display (MM:SS format)
+        minutes = self.game_time_left // 60
+        seconds = self.game_time_left % 60
+        self.game_timer_label.configure(text=f"{minutes}:{seconds:02d}")
+        
+        # Color based on time left
+        if self.game_time_left <= 30:
+            self.game_timer_label.configure(foreground="#ff4444")
+        elif self.game_time_left <= 60:
+            self.game_timer_label.configure(foreground="#ffd93d")
+        else:
+            self.game_timer_label.configure(foreground="#e0e0e0")
+        
+        if self.game_time_left <= 0:
+            self.end_game()
+            return
+        
+        self.game_time_left -= 1
+        self.game_timer_id = self.root.after(1000, self.update_game_timer)
+    
+    def end_game(self):
+        """End the game after 5 minutes and determine winner"""
+        self.game_over = True
+        self.game_state.game_over = True
+        
+        # Stop all timers
+        self.stop_timer()
+        if self.rwnd_timer_id:
+            self.root.after_cancel(self.rwnd_timer_id)
+            self.rwnd_timer_id = None
+        
+        # Disable buttons
+        self.send_btn.configure(state=tk.DISABLED)
+        self.error_btn.configure(state=tk.DISABLED)
+        
+        # Determine winner
+        score_a = self.game_state.score_a
+        score_b = self.game_state.score_b
+        
+        if score_a > score_b:
+            winner_msg = f"GAME OVER! Player A WINS! (A: {score_a}, B: {score_b})"
+            self.turn_label.configure(text="YOU WIN!", foreground="#4ade80")
+        elif score_b > score_a:
+            winner_msg = f"GAME OVER! Player B WINS! (A: {score_a}, B: {score_b})"
+            self.turn_label.configure(text="YOU LOSE!", foreground="#ff4444")
+        else:
+            winner_msg = f"GAME OVER! IT'S A TIE! (A: {score_a}, B: {score_b})"
+            self.turn_label.configure(text="TIE GAME!", foreground="#ffd93d")
+        
+        self.log_message(f"GAME OVER - Final Score: A={score_a}, B={score_b}")
+        self.status_label.configure(text=winner_msg, style="Status.TLabel")
+        self.game_timer_label.configure(text="0:00", foreground="#ff4444")
+        
+        # Notify client
+        self.send_update(winner_msg, True)
     
     def log_message(self, message: str, is_error: bool = False):
         """Add message to log"""
@@ -534,8 +625,7 @@ class HostWindow:
             self.start_timer()
             self.log_message("🔄 Game Reset")
             
-            if self.server.connected:
-                self.server.send_state_update(self.game_state, "Game Reset", True)
+            self.send_update("Game Reset", True)
     
     def on_close(self):
         """Handle window close"""

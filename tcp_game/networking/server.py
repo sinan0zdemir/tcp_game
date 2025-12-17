@@ -144,11 +144,11 @@ class SocketServer:
             if self.on_client_disconnected:
                 self.on_client_disconnected()
     
-    def send_state_update(self, game_state, last_message: str, last_valid: bool, reset_timer: bool = True):
+    def send_state_update(self, game_state, last_message: str, last_valid: bool, reset_timer: bool = True, game_time_left: int = 300, game_over: bool = False):
         """Send game state update to client"""
         if self.connected and self.client_socket:
             try:
-                data = create_state_update(game_state, last_message, last_valid, reset_timer)
+                data = create_state_update(game_state, last_message, last_valid, reset_timer, game_time_left, game_over)
                 self.client_socket.sendall(data)
             except Exception as e:
                 if self.on_error:

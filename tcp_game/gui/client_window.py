@@ -37,6 +37,8 @@ class ClientWindow:
         self.my_next_seq = 0
         self.opponent_sent_invalid = False
         self.last_displayed_packet_count = 0
+        self.game_time_left = 300  # Initial game time (5 minutes)
+        self.game_over = False
         
         # Socket client
         self.client = SocketClient()
@@ -47,6 +49,7 @@ class ClientWindow:
         
         # Timer state
         self.timer_id = None
+        self.game_timer_id = None  # Local game timer
         self.time_left = 45
         
         # Build UI
@@ -107,9 +110,13 @@ class ClientWindow:
         self.score_b_label = ttk.Label(score_row, text="B: 0", style="Score.TLabel")
         self.score_b_label.pack(side=tk.LEFT, padx=5)
         
-        # Timer
+        # Turn timer (45s countdown)
         self.timer_label = ttk.Label(score_row, text="45s", style="Timer.TLabel")
         self.timer_label.pack(side=tk.RIGHT, padx=5)
+        
+        # Game timer (5:00 countdown)
+        self.game_timer_label = ttk.Label(score_row, text="5:00", style="Dark.TLabel")
+        self.game_timer_label.pack(side=tk.RIGHT, padx=10)
         
         # Turn indicator
         self.turn_label = ttk.Label(info_frame, text="Waiting...", style="Turn.TLabel")
@@ -231,10 +238,11 @@ class ClientWindow:
     
     def _handle_connected(self):
         """Handle connection on main thread"""
-        self.network_label.configure(text=f"✅ Connected to {self.host}:{self.port}")
+        self.network_label.configure(text=f"Connected to {self.host}:{self.port}")
         self.log_message("Connected to host!")
         self.status_label.configure(text="Connected! Waiting for your turn...", style="Status.TLabel")
         self.start_timer()
+        self.start_game_timer()
     
     def on_state_update(self, state: dict):
         """Called when state update received from host"""
@@ -251,6 +259,10 @@ class ClientWindow:
         self.my_next_seq = state.get("player_b_next_seq", 0)
         self.opponent_sent_invalid = state.get("opponent_sent_invalid", False)
         
+        # Update game timer
+        self.game_time_left = state.get("game_time_left", 300)
+        self.game_over = state.get("game_over", False)
+        
         last_message = state.get("last_message", "")
         last_valid = state.get("last_valid", True)
         
@@ -266,6 +278,11 @@ class ClientWindow:
                 text=last_message,
                 style="Status.TLabel" if last_valid else "Error.TLabel"
             )
+        
+        # Handle game over
+        if self.game_over:
+            self.handle_game_over()
+            return
         
         # Update display
         self.update_display()
@@ -361,6 +378,43 @@ class ClientWindow:
         if is_my_turn:
             self.seq_entry.delete(0, tk.END)
             self.seq_entry.insert(0, str(self.my_next_seq))
+        
+        # Update game timer display
+        minutes = self.game_time_left // 60
+        seconds = self.game_time_left % 60
+        self.game_timer_label.configure(text=f"{minutes}:{seconds:02d}")
+        
+        # Color based on time left
+        if self.game_time_left <= 30:
+            self.game_timer_label.configure(foreground="#ff4444")
+        elif self.game_time_left <= 60:
+            self.game_timer_label.configure(foreground="#ffd93d")
+        else:
+            self.game_timer_label.configure(foreground="#e0e0e0")
+    
+    def handle_game_over(self):
+        """Handle game over state received from host"""
+        self.stop_timer()
+        
+        # Disable buttons
+        self.send_btn.configure(state=tk.DISABLED)
+        self.error_btn.configure(state=tk.DISABLED)
+        
+        # Determine winner from client B's perspective
+        if self.score_b > self.score_a:
+            self.turn_label.configure(text="YOU WIN!", foreground="#4ade80")
+        elif self.score_a > self.score_b:
+            self.turn_label.configure(text="YOU LOSE!", foreground="#ff4444")
+        else:
+            self.turn_label.configure(text="TIE GAME!", foreground="#ffd93d")
+        
+        # Update timer display
+        self.game_timer_label.configure(text="0:00", foreground="#ff4444")
+        self.log_message(f"GAME OVER - Final Score: A={self.score_a}, B={self.score_b}")
+        
+        # Update scores display
+        self.score_a_label.configure(text=f"A: {self.score_a}")
+        self.score_b_label.configure(text=f"B: {self.score_b}")
     
     def start_timer(self):
         """Start the 45-second countdown timer"""
@@ -400,6 +454,37 @@ class ClientWindow:
         
         self.timer_id = self.root.after(1000, self.update_timer)
     
+    def start_game_timer(self):
+        """Start the local game timer countdown"""
+        if self.game_timer_id:
+            self.root.after_cancel(self.game_timer_id)
+        self.update_game_timer()
+    
+    def update_game_timer(self):
+        """Update game timer display every second"""
+        if self.game_over:
+            return
+        
+        # Update display (MM:SS format)
+        minutes = self.game_time_left // 60
+        seconds = self.game_time_left % 60
+        self.game_timer_label.configure(text=f"{minutes}:{seconds:02d}")
+        
+        # Color based on time left
+        if self.game_time_left <= 30:
+            self.game_timer_label.configure(foreground="#ff4444")
+        elif self.game_time_left <= 60:
+            self.game_timer_label.configure(foreground="#ffd93d")
+        else:
+            self.game_timer_label.configure(foreground="#e0e0e0")
+        
+        if self.game_time_left <= 0:
+            # Game end is handled by host sending game_over state
+            return
+        
+        self.game_time_left -= 1
+        self.game_timer_id = self.root.after(1000, self.update_game_timer)
+    
     def log_message(self, message: str, is_error: bool = False):
         """Add message to log"""
         self.log_text.configure(state=tk.NORMAL)
@@ -422,6 +507,13 @@ class ClientWindow:
         self.my_rwnd = 50
         self.opp_rwnd = 50
         self.my_next_seq = 0
+        self.game_time_left = 300  # Reset game timer
+        self.game_over = False
+        
+        # Cancel old game timer
+        if self.game_timer_id:
+            self.root.after_cancel(self.game_timer_id)
+            self.game_timer_id = None
         
         # Clear log
         self.log_text.configure(state=tk.NORMAL)

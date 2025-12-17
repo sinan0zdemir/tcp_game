@@ -53,6 +53,8 @@ class StateUpdate:
     packet_history: List[Dict]
     opponent_sent_invalid: bool = False
     reset_timer: bool = True  # Whether client should reset their timer
+    game_time_left: int = 300  # Game timer (seconds remaining)
+    game_over: bool = False  # Whether game has ended
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -84,7 +86,7 @@ def create_packet_message(seq: int, ack: int, length: int, rwnd: int, is_error: 
     return encode_message(msg.to_dict())
 
 
-def create_state_update(game_state, last_message: str, last_valid: bool, reset_timer: bool = True) -> bytes:
+def create_state_update(game_state, last_message: str, last_valid: bool, reset_timer: bool = True, game_time_left: int = 300, game_over: bool = False) -> bytes:
     """Create and encode a state update from GameState object"""
     update = StateUpdate(
         current_turn=game_state.current_turn.value,
@@ -100,7 +102,9 @@ def create_state_update(game_state, last_message: str, last_valid: bool, reset_t
         last_valid=last_valid,
         packet_history=game_state.packet_history,
         opponent_sent_invalid=game_state.opponent_sent_invalid,
-        reset_timer=reset_timer
+        reset_timer=reset_timer,
+        game_time_left=game_time_left,
+        game_over=game_over
     )
     return encode_message(update.to_dict())
 

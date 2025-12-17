@@ -30,6 +30,7 @@ class PlayerState:
     last_seq_sent: int = 0  # Last seq this player sent
     last_len_sent: int = 0  # Last length this player sent
     last_ack_received: int = 0  # Last ACK this player received
+    last_ack_sent: int = 0  # Last ACK this player sent (ACKs must be cumulative)
     rwnd: int = 50  # This player's advertised receive window
     dup_ack_count: int = 0  # Count of duplicate ACKs received from opponent
     bytes_sent_total: int = 0  # Total bytes sent by this player
@@ -62,9 +63,9 @@ class GameState:
     a_received_bytes: int = 0  # Total bytes A has received from B
     b_received_bytes: int = 0  # Total bytes B has received from A
     
-    # Track last ACK sent by each player for duplicate detection
-    last_ack_from_a: int = 0
-    last_ack_from_b: int = 0
+    # Track last ACK sent by each player for duplicate detection (None = no packet yet)
+    last_ack_from_a: Optional[int] = None
+    last_ack_from_b: Optional[int] = None
     
     # Game status
     game_over: bool = False
@@ -110,6 +111,8 @@ class GameState:
         - length must not exceed opponent's rwnd
         - seq must be expected OR valid retransmit after 3 dup ACKs
         - ack must be valid (not acking data not yet received)
+        - ack must be cumulative (cannot decrease)
+        - MUST retransmit after receiving 3 duplicate ACKs
         """
         current = self.get_current_player_state()
         opponent = self.get_opponent_player_state()
@@ -139,8 +142,16 @@ class GameState:
             else:
                 # seq jumped ahead - invalid
                 return False, f"INVALID SEQ: expected {expected_seq}, got {seq}"
+        else:
+            # Normal sequence - but if we have 3+ dup ACKs, we MUST retransmit
+            if current.dup_ack_count >= 3:
+                return False, f"MUST RETRANSMIT AFTER 3 DUP ACKS: got seq={seq}, should retransmit earlier packet"
         
-        # Rule 5: ACK validation - can't ack more than what was sent
+        # Rule 5: ACK must be cumulative (cannot decrease)
+        if ack < current.last_ack_sent:
+            return False, f"ACK DECREASED: {ack} < previous {current.last_ack_sent} (ACKs must be cumulative)"
+        
+        # Rule 6: ACK validation - can't ack more than what was sent
         # A can only ACK bytes that B has sent, and vice versa
         if self.current_turn == Player.A:
             # A is sending - A's ack should not exceed what B has sent
@@ -252,6 +263,7 @@ class GameState:
             current.last_len_sent = length
             current.next_seq = seq + length
             current.last_ack_received = ack
+            current.last_ack_sent = ack  # Track for cumulative ACK validation
             current.rwnd = rwnd
             
             # Track total bytes sent for ACK validation
@@ -259,27 +271,25 @@ class GameState:
                 current.bytes_sent_total = seq + length
             
             # Track duplicate ACKs for fast retransmit (TC3, TC5)
-            # Count when opponent sends the same ACK multiple times
+            # When opponent sends the SAME ACK multiple times, the receiver should retransmit
             if sender == Player.A:
-                if ack == self.last_ack_from_a and length == 0:
-                    # This is A receiving duplicate ACK pattern - but A is sending
-                    pass
-                self.last_ack_from_a = ack
-            else:
-                # B is sending ack - check if it's duplicate of B's previous ack
-                if ack == self.last_ack_from_b:
-                    # B sent same ack again - this is a duplicate ACK for A
-                    self.player_a.dup_ack_count += 1
-                else:
-                    self.player_a.dup_ack_count = 0
-                self.last_ack_from_b = ack
-            
-            # Also track when A sends duplicate acks
-            if sender == Player.A:
-                if ack == self.last_ack_from_a:
+                # A is sending - track A's acks for B to detect duplicates
+                if self.last_ack_from_a is not None and ack == self.last_ack_from_a:
+                    # A sent same ack again - this is a duplicate ACK that B receives
                     self.player_b.dup_ack_count += 1
                 else:
+                    # A sent different ack - reset B's dup count
                     self.player_b.dup_ack_count = 0
+                self.last_ack_from_a = ack
+            else:
+                # B is sending - track B's acks for A to detect duplicates
+                if self.last_ack_from_b is not None and ack == self.last_ack_from_b:
+                    # B sent same ack again - this is a duplicate ACK that A receives
+                    self.player_a.dup_ack_count += 1
+                else:
+                    # B sent different ack - reset A's dup count
+                    self.player_a.dup_ack_count = 0
+                self.last_ack_from_b = ack
             
             # Check if rwnd is 0 - don't switch turn, sender must send rwnd update
             if rwnd == 0:
