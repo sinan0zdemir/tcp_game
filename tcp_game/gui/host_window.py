@@ -405,7 +405,7 @@ class HostWindow:
         # Turn indicator
         is_my_turn = self.game_state.current_turn == Player.A
         if is_my_turn:
-            self.turn_label.configure(text="✨ YOUR TURN!", foreground="#4ade80")
+            self.turn_label.configure(text="YOUR TURN!", foreground="#4ade80")
             if self.server.connected:
                 self.send_btn.configure(state=tk.NORMAL)
                 self.error_btn.configure(state=tk.NORMAL)

@@ -342,7 +342,7 @@ class ClientWindow:
         # Turn indicator
         is_my_turn = self.current_turn == "B"
         if is_my_turn:
-            self.turn_label.configure(text="✨ YOUR TURN!", foreground="#4ade80")
+            self.turn_label.configure(text="YOUR TURN!", foreground="#4ade80")
             if self.client.connected:
                 self.send_btn.configure(state=tk.NORMAL)
                 self.error_btn.configure(state=tk.NORMAL)

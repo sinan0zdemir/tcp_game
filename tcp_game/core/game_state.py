@@ -199,7 +199,14 @@ class GameState:
             })
             
             self.opponent_sent_invalid = False
-            # Don't switch turn after ERROR - sender continues
+            
+            # Turn logic for ERROR:
+            # - Correct ERROR: switch turn to other player (they continue play)
+            # - Wrong ERROR: stay on sender (they get another chance to send valid packet)
+            if is_valid:
+                self.switch_turn()
+            # If not valid, don't switch - sender continues
+            
             return is_valid, message, self.score_a, self.score_b
         
         # Regular packet validation
@@ -284,7 +291,17 @@ class GameState:
             self.opponent_sent_invalid = True
             self.who_sent_invalid = sender  # Remember who sent the invalid packet
             self.last_validation_error = error_msg
-            message = f"PACKET ERROR: {error_msg}"
+            
+            # Check if this is an early retransmit (TC-3) - apply automatic -1 penalty
+            if "RETRANSMIT BEFORE 3 DUP ACKS" in error_msg:
+                if sender == Player.A:
+                    self.score_a -= 1
+                    message = f"PACKET ERROR: {error_msg} (A -1 for early retransmit)"
+                else:
+                    self.score_b -= 1
+                    message = f"PACKET ERROR: {error_msg} (B -1 for early retransmit)"
+            else:
+                message = f"PACKET ERROR: {error_msg}"
         
         self.switch_turn()
         return is_valid, message, self.score_a, self.score_b
