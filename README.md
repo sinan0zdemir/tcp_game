@@ -4,7 +4,8 @@ A turn-based TCP protocol simulation game for two players. Players exchange pack
 
 ## Features
 
-- **Two-player GUI**: Separate windows for Player A and Player B
+- **Socket communication**: Real TCP socket connection between two clients
+- **Two-player GUI**: Separate windows for Player A (Host) and Player B (Client)
 - **Packet validation**: Validates seq, ack, len, rwnd following TCP rules
 - **Scoring system**:
   - +1 for correctly detecting opponent's error with ERROR packet
@@ -16,6 +17,22 @@ A turn-based TCP protocol simulation game for two players. Players exchange pack
 
 ## How to Run
 
+### Network Mode (Two Computers or Terminals)
+
+**Player A (Host):**
+```bash
+python run_host.py [port]
+# Example: python run_host.py 5555
+```
+
+**Player B (Client):**
+```bash
+python run_client.py [host_ip] [port]
+# Example: python run_client.py 192.168.1.100 5555
+# For localhost: python run_client.py
+```
+
+### Local Mode (Same Computer, Shared State)
 ```bash
 python run_game.py
 ```
@@ -33,14 +50,22 @@ python run_game.py
 
 ```
 tcp_game_new/
-├── run_game.py           # Entry point
+├── run_game.py           # Local mode (shared state)
+├── run_host.py           # Network host (Player A)
+├── run_client.py         # Network client (Player B)
 ├── tcp_game/
 │   ├── core/
 │   │   ├── packet.py     # Packet dataclass
 │   │   └── game_state.py # Game logic & validation
-│   └── gui/
-│       ├── main_window.py     # Player windows
-│       └── timeline_canvas.py # Packet diagram
+│   ├── gui/
+│   │   ├── main_window.py     # Local mode windows
+│   │   ├── host_window.py     # Network host window
+│   │   ├── client_window.py   # Network client window
+│   │   └── timeline_canvas.py # Packet diagram
+│   └── networking/
+│       ├── protocol.py   # Message serialization
+│       ├── server.py     # Socket server
+│       └── client.py     # Socket client
 └── Project Document tcp.md    # Original requirements
 ```
 
@@ -48,3 +73,4 @@ tcp_game_new/
 
 - Python 3.x
 - Tkinter (included with Python)
+
